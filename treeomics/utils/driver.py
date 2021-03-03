@@ -99,33 +99,75 @@ class Driver:
         return Driver.Colors
 
 
-def _check_gene_match(patient_mut_location, user_drivers):
-    pat_chrom, pat_pos, _ = patient_mut_location
+def _check_gene_match(patient_mut_location, patient_base_change, user_drivers):
+
+    """
+    # @HZ
+    check if a given gene matches any gene in the user driver list
+    :param patient_mut_location: a string formatted as 'chromosome:position:amino_acid_change'
+    :param user_drivers: set with potential driver genes defined by user
+    """
+    
+    is_driver = False
+    var_chrom, var_start_pos, _ = patient_mut_location
     for driver in user_drivers.values():
-        driver_chrom, driver_pos = driver.mutation_location
-        if pat_chrom == driver_chrom and pat_pos == driver_pos:
-            return True
-    return False
+
+    # is the base change (e.g. A>C) provided?
+        if driver.base_change is None:
+            
+            # check if the mutation location (chromosome + location on chromosome, for example 12:10000000) provided?
+            if driver.genomic_location is None:
+                
+                # if neither the location nor the base change is provided, identify driver genes based on gene name only
+                if gene_name in user_drivers:
+                    is_driver = True
+                   
+            else: # if mutation location is available:
+                driver_chrom, driver_start_pos = driver.genomic_location
+                if var_chrom == driver_chrom and var_start_pos == driver_start_pos:
+                    is_driver = True 
+        else: # We are assuming when the base change info is available, the location info should be available too
+            # check both the mutation location and the base change 
+            try:
+                driver_chrom, driver_start_pos = driver.genomic_location
+                driver_base_change = driver.base_change
+                if var_chrom == driver_chrom and var_start_pos == driver_start_pos and patient_base_change == driver_base_change:
+                    is_driver = True
+            except:
+                logger.warning('user provided driver list with base_change info but no genomic_location info. Possibly formatting error')
+    
+    # if driver is identified, try getting its protein sequence change for annotation
+    protein_seq_change = None
+    if is_driver:
+        try:
+            protein_seq_change = driver.protein_seq_change
+        except:
+            pass           
+             
+    return is_driver, protein_seq_change
 
 
-def potential_driver(gene_name, patient_mut_location, user_drivers, variant=None, cgc_drivers=None):
+
+def potential_driver(gene_name, patient_mut_location, patient_base_change, user_drivers, variant=None, cgc_drivers=None):
     """
     Checks if gene name is in set among potential driver genes
     Moreover, if VarCode is installed, it checks for non-synonymous mutations and variants that affect splicing
     Last, if a dictionary with CGC is provided, it checks, if the gene name is in the list and if the position
     is in the right place
     :param gene_name: gene name where the variant occurred
+    @HZ
+    :param patient_mut_location: the variant's genomic location, a tuple (chromosome, start_pos, end_pos)
+    :param patient_base_change: the variant's base change, e.g. A>C
     :param user_drivers: set with potential driver genes defined by user
     :param variant: instance VarCode variant
     :param cgc_drivers: dictionary of Cancer Gene Census
-    :return: variant in a driver gene, potential mutation effect, in CGC, mutation effect
+    :return: whether or not the variant is a driver event(identified by user-provided driver doc), protein 
+    sequence change (for annotation), potential mutation effect, in CGC, mutation effect
     """
 
-    # is_driver_gene = gene_name in user_drivers
-    if gene_name in user_drivers:
-        is_driver_gene = True
-    else:
-        is_driver_gene = False
+    
+     
+    is_driver_gene, protein_seq_change = _check_gene_match(patient_mut_location, patient_base_change, user_drivers)
 
     # TODO: @Haochen, this function needs to check first whether the locations of driver gene mutations were provided
     # otherwise, the driver.mutation_location tries to iterate over a None Object
@@ -136,14 +178,14 @@ def potential_driver(gene_name, patient_mut_location, user_drivers, variant=None
         put_driver = is_functional(mut_effect)
 
         if not put_driver:
-            return is_driver_gene, put_driver, None, mut_effect
+            return is_driver_gene, protein_seq_change, put_driver, None, mut_effect
 
     else:   # we can't predict the mutation effect and hence has to assume there is one
         put_driver = is_driver_gene
         mut_effect = None
 
     if cgc_drivers is None:
-        return is_driver_gene, put_driver, None, mut_effect
+        return is_driver_gene, protein_seq_change, put_driver, None, mut_effect
 
     # are there known positions for this driver gene?
     if cgc_drivers is not None:
@@ -163,13 +205,13 @@ def potential_driver(gene_name, patient_mut_location, user_drivers, variant=None
             else:
                 cgc_driver = False
 
-            return is_driver_gene, put_driver, cgc_driver, mut_effect
+            return is_driver_gene, protein_seq_change, put_driver, cgc_driver, mut_effect
 
         else:   # gene name is not CGC
-            return is_driver_gene, put_driver, False, mut_effect
+            return is_driver_gene, protein_seq_change, put_driver, False, mut_effect
 
     else:       # no CGC provided, hence, we don't know if the variant is in the CGC
-        return is_driver_gene, put_driver, None, mut_effect
+        return is_driver_gene, protein_seq_change, put_driver, None, mut_effect
 
 
 def is_functional(effect_name):
@@ -318,7 +360,7 @@ def read_driver_file(driver_list_path, cancer_type=None):
     """
     Path to CSV file with cancer drivers
     Column "Gene_Symbol" with the gene name is required,
-    columns "Genome_Location" and "CancerType" are optional
+    columns "Genomic_Location", "base_change", "protein_seq_change" and "CancerType" are optional
     :param driver_list_path: path to CSV file with driver gene
     :param cancer_type: only read driver genes for the given cancer type
     :return: dictionary with driver genes as keys and instances of class Driver as values
@@ -361,33 +403,37 @@ def read_driver_file(driver_list_path, cancer_type=None):
                     d = Driver(driver.Gene_Symbol)
                     driver_dict[driver.Gene_Symbol] = d
 
-                if hasattr(DriverEntry, 'Genome_Location'):
+                if hasattr(DriverEntry, 'Genomic_Location'):
                     # extract genome location
-                    chrom, position = driver.Genome_Location.split(':', 1)
-                    if position == '' or position == '-':
-                        start_pos = 0
-                        end_pos = sys.maxsize
-                    else:
-                        start_pos, end_pos = position.split('-', 1)
+                    chrom, position = driver.Genomic_Location.split(':', 1)
+                    d.genomic_location = (chrom, int(position))
+                    # if position == '' or position == '-':
+                    #     start_pos = 0
+                    #     end_pos = sys.maxsize
+                    # else:
+                    #     start_pos, end_pos = position.split('-', 1)
 
-                    if (driver.Gene_Symbol in driver_dict and
-                            driver_dict[driver.Gene_Symbol].genomic_location is not None and
-                            driver_dict[driver.Gene_Symbol].genomic_location != (chrom, int(start_pos), int(end_pos))):
-                        raise RuntimeError('Same driver gene name with different genomic location has been provided!')
+                    # if (driver.Gene_Symbol in driver_dict and
+                    #         driver_dict[driver.Gene_Symbol].genomic_location is not None and
+                    #         driver_dict[driver.Gene_Symbol].genomic_location != (chrom, int(start_pos), int(end_pos))):
+                    #     raise RuntimeError('Same driver gene name with different genomic location has been provided!')
 
-                    d.genomic_location = (chrom, int(start_pos), int(end_pos))
+                    # d.genomic_location = (chrom, int(start_pos), int(end_pos))
+                else: d.genomic_location = None
 
                 if hasattr(DriverEntry, 'Sources'):
                     sources = driver.Sources.split(';')
                     if len(sources) > 0 and (len(sources) > 1 or sources[0] != ''):
                         d.sources = set(sources)
 
-                if hasattr(DriverEntry, 'Mutation_Location'):
-                    chrom, position = driver.Mutation_Location.split(':', 1)
-                    d.mutation_location = (chrom, int(position))
+                if hasattr(DriverEntry, 'base_change'):
+                    d.base_change = driver.base_change
+                else:
+                    d.base_change = None
 
-                if hasattr(DriverEntry, 'Change'):
-                    d.mutation_change = driver.Change
+                if hasattr(DriverEntry, 'protein_seq_change'):
+                    d.protein_seq_change = driver.protein_seq_hange
+                
 
         logger.info("Read {} entries in driver list file {}{}. ".format(
             len(driver_dict), driver_list_path,

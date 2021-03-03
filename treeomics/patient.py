@@ -389,6 +389,7 @@ class Patient(object):
 
         self.mut_keys = []
         self.gene_names = []
+        self.base_change = [] # @HZ add in base change
         if self.ensembl_data is not None:
             self.vc_variants = []
             self.mut_types = []
@@ -407,6 +408,7 @@ class Patient(object):
         for mut_key, gene_name in sorted(gene_names.items(), key=lambda k: k[1].lower()):
 
             chrom, start_pos, end_pos, ref, alt = get_variant_details(mut_key)
+            base_change = '{}>{}'.format(ref, alt) # @HZ add in base change
 
             if self.ensembl_data is not None:
                 # varcode variants were previously generated to check for possible filtering
@@ -419,6 +421,9 @@ class Patient(object):
             self.gene_names.append(gene_names[mut_key])
             # position data of this variant
             self.mut_positions.append((chrom, start_pos, end_pos))
+            # @HZ
+            # base change data of this variant
+            self.base_change.append(base_change)
 
             # - - - - - - - - CLASSIFY MUTATIONS - - - - - - - - -
             for sa_id, sample_name in enumerate(self.sample_names):

@@ -169,9 +169,10 @@ def characterize_drivers(patient, ref_genome, driver_filepath, cgc_filepath, out
         for mut_idx, mut_pos in enumerate(patient.mut_positions):
             variant = patient.vc_variants[mut_idx] if patient.vc_variants is not None else None
 
-            driver_gene, put_driver, cgc_driver, mut_effect = potential_driver(
+            driver_gene, protein_seq_change, put_driver, cgc_driver, mut_effect = potential_driver(
                 patient.gene_names[mut_idx],
                 patient.mut_positions[mut_idx],
+                patient.base_change[mut_idx], 
                 user_drivers,
                 variant=variant,
                 cgc_drivers=cgc_drivers)
