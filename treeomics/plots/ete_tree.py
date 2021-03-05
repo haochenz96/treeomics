@@ -141,6 +141,10 @@ def _generate_ete_tree(tree, cur_node, ete_cur_node, level, patient, pg,
             # is any of the acquired mutations in a driver gene?
             if gene_names is not None and drivers is not None:
                 driver_mut_cnt = Counter()
+
+                # @HZ
+                embed()
+
                 for m in tree[cur_node][child]['muts']:
                     if m in drivers:
                         driver_mut_cnt[gene_names[m]] += 1
@@ -152,6 +156,9 @@ def _generate_ete_tree(tree, cur_node, ete_cur_node, level, patient, pg,
                     + (',...+{}'.format(sum(driver_mut_cnt.values()) - no_shown)
                        if sum(driver_mut_cnt.values()) > MAX_DR_NAS else '')
                     if sum(driver_mut_cnt.values()) > 0 else '')
+                # # @HZ
+                # from IPython import embed
+                # embed()
                 new_n.add_features(drivers=formatted_drs)
 
             new_n.add_features(total_muts=len(tree[cur_node][child]['muts']))

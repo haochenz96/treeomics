@@ -21,6 +21,7 @@ import treeomics.plots.mp_graph as mp_graph
 import treeomics.plots.circos as circos
 import treeomics.utils.analysis as analysis
 
+from IPython import embed
 
 __author__ = 'Johannes REITER, Stanford University - IST Austria - Harvard University'
 __date__ = 'March 31, 2014'
@@ -160,16 +161,17 @@ def characterize_drivers(patient, ref_genome, driver_filepath, cgc_filepath, out
     :return: set of driver genes, dict of driver variants, Counter of unlikely mutation effects
     """
     cgc_drivers, user_drivers = get_drivers(cgc_filepath, driver_filepath, ref_genome)
+
     # check if any of the variants are a putative driver
     put_driver_vars = dict()
-    put_driver_genes = set()
+    put_driver_genes = set() # @HZ: this gene set annotation may need to change be changed later
     unlikely_driver_mut_effects = Counter()
     if patient.gene_names is not None or patient.ensembl_data is not None:
 
         for mut_idx, mut_pos in enumerate(patient.mut_positions):
             variant = patient.vc_variants[mut_idx] if patient.vc_variants is not None else None
 
-            driver_gene, protein_seq_change, put_driver, cgc_driver, mut_effect = potential_driver(
+            is_driver_gene, driver_object, put_driver = potential_driver(
                 patient.gene_names[mut_idx],
                 patient.mut_positions[mut_idx],
                 patient.base_change[mut_idx], 
@@ -177,7 +179,7 @@ def characterize_drivers(patient, ref_genome, driver_filepath, cgc_filepath, out
                 variant=variant,
                 cgc_drivers=cgc_drivers)
 
-            if driver_gene and not put_driver:
+            if is_driver_gene and not put_driver:
                 unlikely_driver_mut_effects[mut_effect] += 1
                 logger.info('Excluded {} variant found in putative driver {}{}.'.format(
                     mut_effect, patient.gene_names[mut_idx],
@@ -186,10 +188,9 @@ def characterize_drivers(patient, ref_genome, driver_filepath, cgc_filepath, out
 
             if put_driver:
                 put_driver_genes.add(patient.gene_names[mut_idx])
-                driver = Driver(patient.gene_names[mut_idx], mutation_effect=mut_effect, cgc_driver=cgc_driver,
-                                sources=user_drivers[patient.gene_names[mut_idx]].sources)
 
-                put_driver_vars[mut_idx] = driver
+
+                put_driver_vars[mut_idx] = driver_object
 
                 if cgc_driver is not None and not cgc_driver:
                     if patient.gene_names[mut_idx] in cgc_drivers.keys():
