@@ -175,22 +175,17 @@ def potential_driver(patient_gene_name, patient_mut_location, patient_base_chang
 
     if is_driver_gene and variant is not None and VARCODE:
         mut_effect = get_top_effect_name(variant)
-        driver_object.mutation_effect = mut_effect
         put_driver = is_functional(mut_effect)
 
         if not put_driver:
-            
-
-            return is_driver_gene, driver_object, put_driver
+            return is_driver_gene, driver_object, put_driver, None, mut_effect
 
     else:   # we can't predict the mutation effect and hence has to assume there is one
         put_driver = is_driver_gene
         mut_effect = None
-        driver_object.mutation_effect = mut_effect
 
     if cgc_drivers is None:
-        driver_object.cgc_driver = None
-        return is_driver_gene, driver_object, put_driver
+        return is_driver_gene, driver_object, put_driver, None, mut_effect
 
     # are there known positions for this driver gene?
     if cgc_drivers is not None:
@@ -210,16 +205,13 @@ def potential_driver(patient_gene_name, patient_mut_location, patient_base_chang
             else:
                 cgc_driver = False
 
-            return is_driver_gene, driver_object, put_driver
+            return is_driver_gene, driver_object, put_driver, cgc_driver, mut_effect
 
         else:   # gene name is not CGC
-            cgc_driver = False
-            driver_object.cgc_driver = cgc_driver
-            return is_driver_gene, driver_object, put_driver
+            return is_driver_gene, driver_object, put_driver, False, mut_effect
 
     else:       # no CGC provided, hence, we don't know if the variant is in the CGC
-        driver_object.cgc_driver = None
-        return is_driver_gene, driver_object, put_driver
+        return is_driver_gene, driver_object, put_driver, None, mut_effect
 
 
 def is_functional(effect_name):
@@ -438,7 +430,7 @@ def read_driver_file(driver_list_path, cancer_type=None):
                     d.base_change = None
 
                 if hasattr(DriverEntry, 'protein_seq_change'):
-                    d.protein_seq_change = driver.protein_seq_hange
+                    d.protein_seq_change = driver.protein_seq_change
                 
 
         logger.info("Read {} entries in driver list file {}{}. ".format(

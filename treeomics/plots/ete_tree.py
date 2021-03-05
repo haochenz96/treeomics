@@ -86,7 +86,7 @@ def create_tree(tree, tree_root_key, filepath, patient, phylogeny, drivers=None)
 
     ts.scale = round_to_1(600 / max_muts)
 
-    ts.branch_vertical_margin = 15  # XX pixels between adjacent branches
+    ts.branch_vertical_margin = 100  # XX pixels between adjacent branches
 
     # rt.show(tree_style=ts)
 
@@ -140,10 +140,19 @@ def _generate_ete_tree(tree, cur_node, ete_cur_node, level, patient, pg,
 
             # is any of the acquired mutations in a driver gene?
             if gene_names is not None and drivers is not None:
-                driver_mut_cnt = Counter()
+                
+                drivers_to_annotate = []
+                # @HZ: rewrite to annotate unique variants, instead of annotate: gene_name(number of occurence)
+                # note: the maximum number of drivers to annotate is not considered here
+                for variant_idx in tree[cur_node][child]['muts']:
+                    if variant_idx in drivers: # the keys of the drivers dict are variant indices from the input file
+                        driver_str = f"{drivers[variant_idx].gene_name} {drivers[variant_idx].protein_seq_change}" \
+                        if drivers[variant_idx].protein_seq_change is not None else drivers[variant_idx].gene_name
+                        drivers_to_annotate.append(driver_str)
 
-                # @HZ
-                embed()
+                formatted_drs = (','.join(d for d in drivers_to_annotate)) 
+                '''
+                driver_mut_cnt = Counter()
 
                 for m in tree[cur_node][child]['muts']:
                     if m in drivers:
@@ -156,9 +165,10 @@ def _generate_ete_tree(tree, cur_node, ete_cur_node, level, patient, pg,
                     + (',...+{}'.format(sum(driver_mut_cnt.values()) - no_shown)
                        if sum(driver_mut_cnt.values()) > MAX_DR_NAS else '')
                     if sum(driver_mut_cnt.values()) > 0 else '')
-                # # @HZ
-                # from IPython import embed
-                # embed()
+                # @HZ
+                from IPython import embed
+                embed()
+                '''
                 new_n.add_features(drivers=formatted_drs)
 
             new_n.add_features(total_muts=len(tree[cur_node][child]['muts']))

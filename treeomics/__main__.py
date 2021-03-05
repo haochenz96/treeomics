@@ -158,7 +158,11 @@ def characterize_drivers(patient, ref_genome, driver_filepath, cgc_filepath, out
     :param cgc_filepath: path to file with CGC list
     :param output_filepath: prefix path to a possible output file summarizing the putative drivers, also serving as an
                      input file to Ensembl VEP and CRAVAT
-    :return: set of driver genes, dict of driver variants, Counter of unlikely mutation effects
+    :return: 
+    (1) set of driver genes
+    (2) dict of driver variants. mapping a driver variant's index in the input file, to the Driver object matched in
+    user-defined driver list 
+    (3) Counter of unlikely mutation effects
     """
     cgc_drivers, user_drivers = get_drivers(cgc_filepath, driver_filepath, ref_genome)
 
@@ -171,7 +175,7 @@ def characterize_drivers(patient, ref_genome, driver_filepath, cgc_filepath, out
         for mut_idx, mut_pos in enumerate(patient.mut_positions):
             variant = patient.vc_variants[mut_idx] if patient.vc_variants is not None else None
 
-            is_driver_gene, driver_object, put_driver = potential_driver(
+            is_driver_gene, driver_object, put_driver, cgc_driver, mut_effect = potential_driver(
                 patient.gene_names[mut_idx],
                 patient.mut_positions[mut_idx],
                 patient.base_change[mut_idx], 
@@ -188,12 +192,12 @@ def characterize_drivers(patient, ref_genome, driver_filepath, cgc_filepath, out
 
             if put_driver:
                 put_driver_genes.add(patient.gene_names[mut_idx])
-
-
-                put_driver_vars[mut_idx] = driver_object
+                driver_object.cgc_driver = cgc_driver
+                driver_object.mutation_effect = mut_effect
+                put_driver_vars[mut_idx] = driver_object 
 
                 if cgc_driver is not None and not cgc_driver:
-                    if patient.gene_names[mut_idx] in cgc_drivers.keys():
+                    if patient.gene_names[mut_idx] in [lambda x: x.gene_name for x in cgc_drivers]:
                         logger.info('{} variant found in putative driver {} but outside of reported CGC region{}.'
                                     .format(mut_effect, patient.gene_names[mut_idx], ' (chr {}, pos {})'.format(
                                             mut_pos[0], mut_pos[1]) if mut_pos is not None else ''))
@@ -220,7 +224,7 @@ def characterize_drivers(patient, ref_genome, driver_filepath, cgc_filepath, out
                 var = patient.vc_variants[mut_idx]
                 d = put_driver_vars[mut_idx]
                 if cgc_drivers is not None:
-                    cgc_status = (', not in CGC' if d.gene_name not in cgc_drivers.keys() else
+                    cgc_status = (', not in CGC' if d.gene_name not in [lambda x: x.gene_name for x in cgc_drivers] else
                                   (', in CGC' if d.cgc_driver is None or d.cgc_driver
                                    else ', in CGC but outside of reported region'))
                 else:
